@@ -70,3 +70,13 @@ Errors are raised as `buttrbase.ButtrbaseError` with `status_code`, `code`, `det
 ## Docs
 
 See https://buttrbase.com/docs for the full API reference.
+
+## Releasing (maintainers)
+
+Tagged pushes (`v*`) trigger `.github/workflows/release.yml`, which builds and publishes to PyPI via [trusted publishing](https://docs.pypi.org/trusted-publishers/) — no API token required.
+
+One-time setup on PyPI: project Settings → Publishing → Add a new pending publisher:
+- Owner: `ButtrBase`
+- Repository name: `buttrbase-sdk-python`
+- Workflow name: `release.yml`
+- Environment name: (leave empty)
