@@ -161,3 +161,120 @@ class ButtrbaseClient:
         return self._request(
             "PUT", f"/api/v1/orgs/{org_uuid}/secrets/{name}", json=payload
         )
+
+    # ----- Step-up auth -----
+    def auth_step_up(self, code: str, recovery: bool = False) -> dict:
+        """POST /api/auth/step-up.
+
+        Exchange an MFA TOTP (or recovery) code for a short-lived
+        elevated access token (~5 min). On success the SDK's bearer
+        token is REPLACED with the returned ``access_token`` so the
+        next admin / JIT call carries the elevated session.
+        """
+        payload = {"code": code, "recovery": recovery}
+        body = self._request("POST", "/api/auth/step-up", json=payload)
+        if isinstance(body, dict) and body.get("access_token"):
+            self.api_key = body["access_token"]
+        return body
+
+    # ----- JIT elevation (admin) -----
+    # All elevation endpoints require an active step-up session.
+    def elevation_request(
+        self,
+        org_uuid: str,
+        scope: str,
+        reason: Optional[str] = None,
+        ttl_seconds: Optional[int] = None,
+    ) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/elevation/request — returns a grant view."""
+        payload: dict = {"scope": scope}
+        if reason is not None:
+            payload["reason"] = reason
+        if ttl_seconds is not None:
+            payload["ttl_seconds"] = ttl_seconds
+        return self._request(
+            "POST", f"/api/admin/orgs/{org_uuid}/elevation/request", json=payload
+        )
+
+    def elevation_approve(self, org_uuid: str, grant_uuid: str) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/elevation/{grant_uuid}/approve.
+
+        Server returns 403 if the approver is the same admin as the requester.
+        """
+        return self._request(
+            "POST",
+            f"/api/admin/orgs/{org_uuid}/elevation/{grant_uuid}/approve",
+        )
+
+    def elevation_list(self, org_uuid: str, status: Optional[str] = None) -> list:
+        """GET /api/admin/orgs/{org_uuid}/elevation — list grant views."""
+        params: dict = {}
+        if status is not None:
+            params["status"] = status
+        return self._request(
+            "GET",
+            f"/api/admin/orgs/{org_uuid}/elevation",
+            params=params or None,
+        )
+
+    # ----- SPIFFE -----
+    def spiffe_issue_svid(
+        self,
+        org_uuid: str,
+        workload_path: str,
+        ttl_seconds: Optional[int] = None,
+    ) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/spiffe/svid — issue an X.509 SVID."""
+        payload: dict = {"workload_path": workload_path}
+        if ttl_seconds is not None:
+            payload["ttl_seconds"] = ttl_seconds
+        return self._request(
+            "POST", f"/api/admin/orgs/{org_uuid}/spiffe/svid", json=payload
+        )
+
+    # ----- Context-aware auth events -----
+    def list_auth_events(
+        self,
+        org_uuid: str,
+        user_uuid: Optional[str] = None,
+        limit: int = 50,
+    ) -> list:
+        """GET /api/admin/orgs/{org_uuid}/auth-events."""
+        params: dict = {"limit": limit}
+        if user_uuid is not None:
+            params["user_uuid"] = user_uuid
+        return self._request(
+            "GET", f"/api/admin/orgs/{org_uuid}/auth-events", params=params
+        )
+
+    # ----- Re-encrypt (key rotation) -----
+    def reencrypt_secrets(self, org_uuid: str) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/reencrypt/secrets."""
+        return self._request(
+            "POST", f"/api/admin/orgs/{org_uuid}/reencrypt/secrets"
+        )
+
+    def reencrypt_signing_keys(self, org_uuid: str) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/reencrypt/signing-keys."""
+        return self._request(
+            "POST", f"/api/admin/orgs/{org_uuid}/reencrypt/signing-keys"
+        )
+
+    def reencrypt_mtls_ca(self, org_uuid: str) -> dict:
+        """POST /api/admin/orgs/{org_uuid}/reencrypt/mtls-ca."""
+        return self._request(
+            "POST", f"/api/admin/orgs/{org_uuid}/reencrypt/mtls-ca"
+        )
+
+    # ----- Sessions -----
+    def revoke_session(self, jti: str, ttl_seconds: Optional[int] = None) -> dict:
+        """POST /api/admin/sessions/revoke — add ``jti`` to the revocation list."""
+        payload: dict = {"jti": jti}
+        if ttl_seconds is not None:
+            payload["ttl_seconds"] = ttl_seconds
+        return self._request("POST", "/api/admin/sessions/revoke", json=payload)
+
+    # ----- Metrics -----
+    def get_org_metrics(self, org_uuid: str) -> dict:
+        """GET /api/admin/orgs/{org_uuid}/metrics."""
+        return self._request("GET", f"/api/admin/orgs/{org_uuid}/metrics")
