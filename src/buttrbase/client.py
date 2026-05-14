@@ -6,6 +6,7 @@ from typing import Any, Optional
 import requests
 
 from .errors import ButtrbaseError
+from .types import Credential, CreateCredentialResponse, RotateSecretResponse, SandboxResetResponse
 
 DEFAULT_BASE_URL = "https://stagingapi.buttrbase.com"
 
@@ -278,3 +279,62 @@ class ButtrbaseClient:
     def get_org_metrics(self, org_uuid: str) -> dict:
         """GET /api/admin/orgs/{org_uuid}/metrics."""
         return self._request("GET", f"/api/admin/orgs/{org_uuid}/metrics")
+
+    # ----- Credentials -----
+    def list_credentials(self) -> dict:
+        """GET /credentials — returns ``{"data": [Credential, ...]}``."""
+        return self._request("GET", "/credentials")
+
+    def create_credential(self, name: str, description: Optional[str] = None) -> CreateCredentialResponse:
+        """POST /credentials — create a new credential (returns HTTP 201).
+
+        Args:
+            name: Human-readable name for the credential.
+            description: Optional description for the credential.
+
+        Returns:
+            A ``CreateCredentialResponse`` dict containing ``credentials_id``,
+            ``client_id``, ``client_secret``, ``name``, ``description``, and
+            ``created_at``.
+        """
+        payload: dict = {"name": name}
+        if description is not None:
+            payload["description"] = description
+        return self._request("POST", "/credentials", json=payload)
+
+    def get_credential(self, credential_id: str) -> Credential:
+        """GET /credentials/{credential_id} — fetch a single credential.
+
+        Note: the response does **not** include ``client_secret``.
+        """
+        return self._request("GET", f"/credentials/{credential_id}")
+
+    def delete_credential(self, credential_id: str) -> None:
+        """DELETE /credentials/{credential_id} — delete a credential (HTTP 204)."""
+        self._request("DELETE", f"/credentials/{credential_id}")
+
+    def rotate_credential_secret(self, credential_id: str) -> RotateSecretResponse:
+        """POST /credentials/{credential_id}/rotate-secret — generate a new client secret.
+
+        Returns:
+            A ``RotateSecretResponse`` dict containing ``credentials_id``,
+            ``client_id``, and the new ``client_secret``.
+        """
+        return self._request("POST", f"/credentials/{credential_id}/rotate-secret")
+
+    # ----- Sandbox -----
+    def reset_sandbox(self, org_uuid: Optional[str] = None) -> SandboxResetResponse:
+        """POST /api/sandbox/reset — reset the sandbox environment.
+
+        Args:
+            org_uuid: Optional organisation UUID to scope the reset to a
+                specific organisation's sandbox data.
+
+        Returns:
+            A ``SandboxResetResponse`` dict (shape may vary; typically
+            contains a ``status`` field).
+        """
+        payload: dict = {}
+        if org_uuid is not None:
+            payload["org_uuid"] = org_uuid
+        return self._request("POST", "/api/sandbox/reset", json=payload or None)
