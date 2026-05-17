@@ -332,6 +332,88 @@ Errors are raised as `buttrbase.ButtrbaseError` with `status_code`, `code`, `det
 
 See https://buttrbase.com/docs for the full API reference.
 
+## Recipes
+
+### Complete Onboarding
+
+```python
+from buttrbase import ButtrbaseClient
+
+client = ButtrbaseClient(api_key="bb_live_...")
+
+# 1. Register and login
+client.register("admin@acme.com", "s3cur3!", "Acme Corp", first_name="Alice")
+resp = client.login("admin@acme.com", "s3cur3!", "Acme Corp")
+
+# 2. Get profile
+profile = client.get_profile()
+
+# 3. Create a team and add a member
+team = client.create_team({"name": "Engineering", "org_uuid": profile["org"]["uuid"]})
+client.add_team_member(team["uuid"], "colleague-user-uuid")
+```
+
+### MFA Enrollment
+
+```python
+# 1. Check MFA status
+status = client.mfa_status_full()
+
+# 2. Enroll in TOTP — returns secret + QR URL
+enrollment = client.mfa_totp_enroll()
+print(f"Scan this QR: {enrollment['qr_code_url']}")
+
+# 3. Activate with code from authenticator app
+client.mfa_totp_activate("123456")
+
+# 4. Generate recovery codes
+codes = client.mfa_generate_recovery_codes()
+print(f"Save these recovery codes: {codes['codes']}")
+```
+
+### Checkout Flow
+
+```python
+# 1. Preview pricing
+preview = client.pricing_preview({"plan": "pro", "seats": 10})
+
+# 2. Check entitlement
+check = client.entitlements_check("advanced-analytics", org_uuid="org-uuid")
+
+# 3. Create checkout session
+session = client.pricing_checkout_session({"plan": "pro", "seats": 10})
+print(f"Redirect to: {session['url']}")
+```
+
+### SSO Setup
+
+```python
+# 1. Create an OIDC connection
+conn = client.create_sso_connection("org-uuid", "okta", "Okta SSO",
+    {"domain": "myorg.okta.com", "client_id": "...", "client_secret": "..."})
+
+# 2. Get the authorize URL
+url = client.oidc_authorize_url(conn["connection_uuid"])
+
+# 3. Handle callback (on your server)
+resp = client.oidc_callback({"code": "auth-code", "state": "state-value"})
+```
+
+### Secrets & Key Management
+
+```python
+# 1. Store a secret
+client.put_secret_admin("org-uuid", "DATABASE_URL", "postgres://...")
+
+# 2. List and retrieve secrets
+secrets = client.list_secrets("org-uuid")
+secret = client.get_secret_by_name("org-uuid", "DATABASE_URL")
+
+# 3. Rotate signing keys
+client.rotate_signing_keys("org-uuid")
+audit = client.list_signing_audit("org-uuid")
+```
+
 ## Releasing (maintainers)
 
 Tagged pushes (`v*`) trigger `.github/workflows/release.yml`, which builds and publishes to PyPI via [trusted publishing](https://docs.pypi.org/trusted-publishers/) — no API token required.
